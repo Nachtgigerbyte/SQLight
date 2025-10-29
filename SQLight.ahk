@@ -4,7 +4,7 @@
 /********************************************************************
 *
 *	Name:			SQLight
-*	Version: 		1.0
+*	Version: 		1.0.0
 *	Description:	Interface to SQLite3's dynamic link library.
 *	
 *	Author: 		Nachtgigerbyte

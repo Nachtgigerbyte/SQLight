@@ -1,15 +1,15 @@
-# SQLight - Interface to SQLite
+# SQLight AHK library - Autohotkey interface to SQLite library
 
 An `Autohotkey v2` interface to the `sqlite3.dll` dynamic link library. 
-This library enables your `AHK`-script to accomplish operations and interactions within 
+This library enables your `AHK` script to accomplish operations and interactions within 
 the widely appreciated `SQLite` database framework.
 
-The library can be included to your `AHK`-Project the usual way, depending 
+The library can be included to your `AHK` project the usual way, depending 
 on where you place it.
 ```
 #Include some\path\SQLight\SQLight.ahk
 ```
-If you place the `SQLight`-folder in the `lib` folder of your project, you could also use:
+If you place the `SQLight` folder in the `lib` folder of your project, you could also use:
 ```
 #Include <SQLight\SQLight>
 ```
@@ -19,7 +19,7 @@ OR if in a subdirectory:
 ```
 
 Note that the `sqlite3.dll` is already included in `\lib\bin`. 
-But you are free to replace it with a newer one downloaded from `sqlite.org`. 
+But you are free to replace it with a newer one downloaded from [SQLite](https://sqlite.org). 
 Just make sure to place it in one of the following locations:
 * `...\SQLight\lib\bin\`
 * `...\SQLight\lib\`
@@ -37,15 +37,24 @@ YourProject
 		|
 		+---SQLight.ahk
 ```
-
-After inclusion, we should run a few tests using the fantastic `Yunit` test framework, which is also included. 
+Though, you dont have to follow this suggestive structure. To keep it as simple as you might like, 
+this structure would suffice:
+```
+YourProject
+|
++---sqlite3.dll
+|
++---SQLight.ahk
+```
+But before messing around with the files in this package, just leave it intact for a while to 
+run a few tests using the fantastic `Yunit` test framework, which is also included. 
 To do so, navigate to the `tests` folder within the `SQLight` folder and execute the 
-test script named `SQLight_test.ahk`. If all goes well, you should see
-all tests being passed indicated by a green bar at the button of the `Yunit` window.
-Otherwise a red bar would appear `:(`. If you can make yourself a clue of what was going wrong, tell me.
+test script named `SQLight_test.ahk`. If all goes well, you should see 
+all tests being passed indicated by a green bar at the button of the `Yunit` window. 
+Otherwise a red bar would appear `:(`. If you can make yourself a clue of what was going wrong, tell me. 
  
 ## Ok then, lets assume all went well, we proceed with some coding.
-Create the `SQLight` instance and establish connection to `.\test.db`, if the database does not exist its created.
+Create a `SQLight` instance and establish connection to `.\test.db`, if the database does not exist its created.
 ```
 db := SQLight()
 db.Connect('.\test.db')
@@ -57,6 +66,7 @@ db := SQLight('test.db', SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE)
 You could also explicitly specify some flags as seen above, which reflect the default flags and therefore could 
 have been avoided. Other flags to combine can be found in the source or at sqlite's `sqlite3_open_v2()` documentation. 
 To create an "in-memory" database that exist in memory only for the duration of the `SQLight` instance, add `SQLITE_OPEN_MEMORY`. 
+Suitable for testing frameworks.
 ```
 db := SQLight('test.db', SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_MEMORY)
 ```
@@ -67,10 +77,10 @@ ret := db.Now('CREATE TABLE test_table (col_1 TEXT UNIQUE, col_2 INT64, col_3 RE
 if (ret = false)
 	throw Error(db.error, -1)  
 ```	
-The `Now()` method takes a single argument, which is the sql-string we want to execute. In this 
+The `Now()` method takes a single argument, which is the sql string we want to execute. In this 
 case we create a new table named `test_table` with 4 columns. 
 Note that this method cannot receive any result rows, if rows are going to be expected, 
-depending on the sql-string, `Load()` and `Go()` must be used instead; we come to that later. 
+depending on the sql string, `Load()` and `Go()` must be used instead; we come to that later. 
 
 ## Insert rows 
 ```	
@@ -80,14 +90,16 @@ This inserts a row into our `test_table`, but notice that for the last column, t
 because we cannot insert blobs with the `Now()` method directly, we need another approach, with a `?` placeholder.
 Here comes the `Load()` and `Go()` methods.
 
-The table now contains a single row, including a `NULL`-blob, lets insert a "real" blob.
-First we need to `Load()` our sql string which seems quite the same as with the `Now()` method except that  
+First we need to `Load()` our sql string which seems quite the same as with the `Now()` method except that 
 the `Load()` method can 
-* take placeholders (`?`), 
-* use sql-statements that receive results 
+* take placeholders (`?`), along with their parameters
+* handle sql statements that receive results (like `SELECT`)
 * not execute the sql directly, it just loads and holds the sql `statement`, until it is executed by `Go()`.  
+
 The second argument to the `Load()` method is in fact a dynamic parameter list, which relates to the corresponding 
-`?` placeholders. `Load(sql_string, parameters*, ...)`
+`?` placeholders. `Load(sql_string, parameters*, ...)` 
+
+Our table now contains a single row, including a `NULL` blob, lets insert a "real" blob. 
 ```
 ; copy file to buffer, which is then used as blob data
 buf := FileRead('img.jpg',"RAW") 
@@ -101,6 +113,7 @@ db.Go()
 Notice the column value `?` used for `col_4`. As we only have one `?`, the first parameter `buf` refers 
 to that placeholder. 
 > The order the placeholders appear, from left to right, must match the sequence of the dynamic parameter list.
+
 Lets try this:
 ```
 db.Load('INSERT INTO test_table (col_1, col_2, col_3, col_4) VALUES ("text_3", ? , 3.14, ?)', 678, buf)
@@ -109,7 +122,7 @@ db.Go()
 As you might guess, we have a second placeholder for the integer column `col_2` and 
 therefore a second parameter: `db.Load(..., 678, buf)`
 
-Lets get fancy about this and introduce a new method named `Save()`. This method again takes a single 
+Lets get fancy about this and introduce a new method named `Save()`. This method takes a single 
 argument: an sql string. It returns an integer, which represents an "id" to be refered by `Load()`. 
 ```
 ; save sql
@@ -128,12 +141,13 @@ pattern.
 
 ## Getting results
 Until now we used the `Go()` method without any arguments to execute a loaded sql statement, but it can take additional 
-two arguments: the first one is a `reference to a variable` you pass in, the second one determins the 
+two arguments: the first one is a `reference` to a variable you pass in, the second one determins the 
 `datatype` of the first one, which can be either `SQLIGHT_ROW_ARRAY` (`Array()`) or `SQLIGHT_ROW_MAP` (`Map()`).  
 `Go(&row, mode)` returns:
 * `SQLITE_DONE`:	successfully executet the statement, no (more) rows available
 * `SQLITE_ROW`:	 	successfully executet the statement, (next) row has been received in `&row`
 * otherwise:		an error code (check `.error`)
+
 This becomes handy when results (rows) are expected, like with `SELECT`.
 ```
 ; request the row where "col_1" is "text_4"
@@ -242,5 +256,5 @@ db.__COMMIT_TRANSACTION__()
 Thats it. For more information refer to
 * `SQLight\SQLight.ahk` source
 * `SQLight\tests\SQLight_test.ahk` test file
-* `SQLite.org`
+* [SQLite](https://sqlite.org)
 
