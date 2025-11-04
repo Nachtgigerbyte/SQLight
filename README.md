@@ -24,7 +24,10 @@ Just make sure to place it in one of the following locations:
 * `...\SQLight\lib\bin\`
 * `...\SQLight\lib\`
 * `...\SQLight\`
-```
+<details>
+<summary>Suggestive structure</summary>
+Suggestive structure
+```javascript
 YourProject
 |
 +---lib
@@ -37,6 +40,8 @@ YourProject
 		|
 		+---SQLight.ahk
 ```
+</details>
+
 Though, you dont have to follow this suggestive structure. To keep it as simple as you might like, 
 this structure would suffice:
 ```
