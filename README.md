@@ -1,4 +1,5 @@
-# SQLight AHK library - Autohotkey interface to SQLite library
+# SQLight  
+## Autohotkey(AHK) database interface to SQLite 
 
 An `Autohotkey v2` interface to the `sqlite3.dll` dynamic link library. 
 This library enables your `AHK` script to accomplish operations and interactions within 
@@ -20,14 +21,12 @@ OR if in a subdirectory:
 
 Note that the `sqlite3.dll` is already included in `\lib\bin`. 
 But you are free to replace it with a newer one downloaded from [SQLite](https://sqlite.org). 
-Just make sure to place it in one of the following locations:
-* `...\SQLight\lib\bin\`
-* `...\SQLight\lib\`
-* `...\SQLight\`
-<details>
-<summary>Suggestive structure</summary>
-Suggestive structure
-```javascript
+Just make sure to place it in one of the following locations, relative to the folder where 
+`SQLight.ahk` is placed into: 
+* `\` 
+* `\lib\` 
+* `\lib\bin\` 
+```
 YourProject
 |
 +---lib
@@ -40,10 +39,8 @@ YourProject
 		|
 		+---SQLight.ahk
 ```
-</details>
-
 Though, you dont have to follow this suggestive structure. To keep it as simple as you might like, 
-this structure would suffice:
+this structure would suffice: 
 ```
 YourProject
 |
@@ -76,40 +73,168 @@ Suitable for testing frameworks.
 db := SQLight('test.db', SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_MEMORY)
 ```
 
-## Ok we have a connection, lets interact with the database.
+## Ok we have a connection, interact with the database. 
+
+<details> 
+<summary>The `Now()` method</summary> 
+
+`Now(sql, &tbl?, mode := SQLIGHT_ROW_MAP)` 
+
+```javascript
+Execute `sql` directly, and get the results if any.
+This method can NOT use placeholders `?`, use `Load()`, `Go()` instead. 
+All results received by this method are of type `String`, 
+number columns like `INT64` and `REAL` are converted to text too. Blob columns 
+are converted, but break at the first zero string terminator and therefore 
+its not recommended to receive blob columns with this method, except they are not 
+accessed/needed in subsequent operations.
+
+`sql`: 	the sql to execute
+`tbl`:		if defined and if results available, this parameter receives a result table,
+			which is an `Array()` whose elements datatype is defined by `mode`;
+			if defined and if no result is available, this parameter receives an 
+			empty string
+`mode`:	determins the datatype of the elements in `tbl`-Array(), 
+		which is of type:
+			`Map()`, if `mode` is `SQLIGHT_ROW_MAP`
+			`Array()`, if `mode` is `SQLIGHT_ROW_ARRAY`
+			
+RETURNS:	true on success, false otherwise
+```
+
+</details> 
+
+Here's an example:  
 ```
 ret := db.Now('CREATE TABLE test_table (col_1 TEXT UNIQUE, col_2 INT64, col_3 REAL, col_4 BLOB)')
 if (ret = false)
 	throw Error(db.error, -1)  
+	
+db.Now('INSERT INTO test_table (col_1, col_2, col_3, col_4) VALUES ("col_1_A", 1, 1.14, NULL)')	
+db.Now('INSERT INTO test_table (col_1, col_2, col_3, col_4) VALUES ("col_1_B", 2, 2.14, NULL)')	
 ```	
-The `Now()` method takes a single argument, which is the sql string we want to execute. In this 
-case we create a new table named `test_table` with 4 columns. 
-Note that this method cannot receive any result rows, if rows are going to be expected, 
-depending on the sql string, `Load()` and `Go()` must be used instead; we come to that later. 
+The `Now()` method takes the sql you throw at and executes it. No intermediate functions required. 
+In this case we created a new table named `test_table` with 4 columns and inserted two rows. 
+Lets query these rows, for which we need the 2nd and 3rd parameter, 
+the second one, a `reference` to a variable you pass in, receives a potential result 
+consisting as an array of rows, the third one determins the row `datatype`, 
+which can be either `SQLIGHT_ROW_ARRAY` (`Array()`) or `SQLIGHT_ROW_MAP` (`Map()`). 
+```
+db.Now('SELECT * FROM test_table', &tbl, SQLIGHT_ROW_MAP)
 
-## Insert rows 
+; get the number of rows in the table
+ret := tbl.Length  		; ret = 2
+
+; get the number of columns in a row
+ret := tbl[1].Count   	; ret = 4
+
+; as we requested a `SQLIGHT_ROW_MAP` we access like that
+
+; get the value of 'col_1' in the 1st row
+ret := tbl[1]['col_1']  ; ret = "col_1_A"
+
+; get the value of 'col_2' in the 2nd row
+ret := tbl[2]['col_2']  ; ret = 2
+
+; --------------------------------------
+
+; now request a 'SQLIGHT_ROW_ARRAY'
+db.Now('SELECT * FROM test_table', &tbl, SQLIGHT_ROW_ARRAY)
+
+; get the number of rows in the table
+ret := tbl.Length  		; ret = 2
+
+; get the number of columns in a row;
+; notice, it is `ArrayObj.Length` not `MapObj.Count` as we requested a row array
+ret := tbl[1].Length   	; ret = 4
+
+; get the value of the 1st column in the 1st row
+ret := tbl[1][1]  ; ret = "col_1_A"
+
+; get the value of the 2nd column in the 2nd row
+ret := tbl[2][2]  ; ret = 2
+```
+
+## Load and Go
+First, insert another row with the previously discussed `Now()` method.  
 ```	
 db.Now('INSERT INTO test_table (col_1, col_2, col_3, col_4) VALUES ("text_1", 123, 3.14, NULL)')
 ```	
-This inserts a row into our `test_table`, but notice that for the last column, the blob column, we inserted NULL. Thats 
-because we cannot insert blobs with the `Now()` method directly, we need another approach, with a `?` placeholder.
-Here comes the `Load()` and `Go()` methods.
+Notice that for the last column, the blob column, we inserted NULL. Thats 
+because we cannot insert blobs with the `Now()` method directly, we need another approach, with a `?` placeholder. 
+Here comes the `Load()` and `Go()` methods. 
 
-First we need to `Load()` our sql string which seems quite the same as with the `Now()` method except that 
-the `Load()` method can 
-* take placeholders (`?`), along with their parameters
-* handle sql statements that receive results (like `SELECT`)
-* not execute the sql directly, it just loads and holds the sql `statement`, until it is executed by `Go()`.  
+<details> 
+<summary>The `Load()` method</summary> 
 
+`Load(sql, params*)` 
+
+```javascript
+Load SQL-Statement.
+Loads a previously saved statement, or a temporary one, ready to be executed by `Go()`.
+Each time a new (saved or temporary) statement is loaded the previous statement get reset in 
+order to make sure no transaction is kept open. 
+To avoid running into character escaping troubles, this function should be prefered over `Now()`.
+
+`sql`: 	if 'String': 	temporary sql-statement to load
+		if 'Integer':  	number that refers to a previously saved statement using `Save()`
+	NOTE: 
+		`?` is the only supported placeholder for parameters
+`params`:	parameters for `?`-bindings in an `sql`-statement
+	NOTE:
+		blob parameters must be of type 'Buffer' -> `Buffer()`;
+		Supported parameter types: 'Buffer'(BLOB), 'Integer'(INTEGER), 'Float'(REAL), 'String'(TEXT)
+
+RETURNS: 	`true`: 	if loaded successfully
+			`false`:	on error, check `this.status` and `this.error` 
+```
+
+</details> 
+
+<details> 
+<summary>The `Go()` method</summary> 
+
+`Go(&row?, mode := SQLIGHT_ROW_MAP)` 
+
+```javascript
+Execute the current loaded statement.
+If result rows expected, consecutive calls to this function can be used 
+to iterate over the resulting rows.
+
+`row`:		receives (next) row, if result is available
+`mode`:		data structure of received `&row`, one of these: 	
+			`SQLIGHT_ROW_MAP`: 		0: 		`Map()`
+			`SQLIGHT_ROW_ARRAY`: 	!=0:	`Array()` 
+
+RETURNS: 	`SQLITE_DONE`:	successfully executet the statement, no (more) rows available;
+							NOTE: 
+								if a previous call to this function returned `SQLITE_DONE`, 
+								the next call to this function performs an auto
+								reset and starts over again;
+			`SQLITE_ROW`:	successfully executet the statement, (next) row has been received in `&row`;
+			otherwise:		an error code (check `this.error`)
+	
+EXAMPLE:	Parse all resulting rows:		
+			while ((ret := db.Go(&row)) = SQLITE_ROW) {
+				... do something with `row` ...
+			}
+			; make sure all rows had been parsed without errors
+			if (ret != SQLITE_DONE)  
+				throw Error(db.error,-1)
+```
+
+</details> 
+
+First we need to `Load()` our sql string, which is then ready to be executed by `Go()`.
 The second argument to the `Load()` method is in fact a dynamic parameter list, which relates to the corresponding 
-`?` placeholders. `Load(sql_string, parameters*, ...)` 
+`?` placeholders. `Load(sql_string, [parameter1, parameter2, ...])` 
 
-Our table now contains a single row, including a `NULL` blob, lets insert a "real" blob. 
+Our table now contains a few rows, including `NULL` blob's, lets insert a "real" blob. 
 ```
 ; copy file to buffer, which is then used as blob data
 buf := FileRead('img.jpg',"RAW") 
 
-; load the sql using placeholder `?`
+; load the sql using placeholder `?` for the blob column
 db.Load('INSERT INTO test_table (col_1, col_2, col_3, col_4) VALUES ("text_2", 345 , 3.14, ?)',  buf)
 
 ; execute the loaded sql
@@ -129,8 +254,25 @@ therefore a second parameter: `db.Load(..., 678, buf)`
 
 Lets get fancy about this and introduce a new method named `Save()`. This method takes a single 
 argument: an sql string. It returns an integer, which represents an "id" to be refered by `Load()`. 
+
+<details> 
+<summary>The `Save()` method</summary> 
+
+`Save(sql)` 
+
+```javascript
+Save `sql`-patterns for later use
+
+`sql`:	the sql to save, can take placeholder `?`, ready to be used by `Load()`
+
+RETURNS: 	index(integer) where the statement had been saved, 
+			-1 otherwise (check `this.status`, `this.error`)
 ```
-; save sql
+
+</details> 
+
+```
+; save sql pattern
 my_insert_pattern := db.Save('INSERT INTO test_table (col_1, col_2, col_3, col_4) VALUES (?, ?, ?, ?)')
 
 ; load and execute
@@ -142,24 +284,26 @@ db.Load(my_insert_pattern, "text_6", 789, 3.16, FileRead('img3.jpg',"RAW"))
 db.Go()
 ```
 As you can see, the first parameter of `Load()` can be replaced by an integer "id" to refer to a previously saved 
-pattern.
+pattern. To clear all saved patterns call the `ClearSaved()` method, which is called on destruction by default. 
 
-## Getting results
-Until now we used the `Go()` method without any arguments to execute a loaded sql statement, but it can take additional 
-two arguments: the first one is a `reference` to a variable you pass in, the second one determins the 
-`datatype` of the first one, which can be either `SQLIGHT_ROW_ARRAY` (`Array()`) or `SQLIGHT_ROW_MAP` (`Map()`).  
+## Getting results with `Go()`
+Until now we used the `Go()` method without any arguments to execute a loaded sql statement, but it 
+can take two arguments: the first one, a `reference` to a variable you pass in, receives a 
+potential result row, the second one determins the `datatype` of the first one, 
+which can be either `SQLIGHT_ROW_ARRAY` (`Array()`) or `SQLIGHT_ROW_MAP` (`Map()`). 
+
 `Go(&row, mode)` returns:
 * `SQLITE_DONE`:	successfully executet the statement, no (more) rows available
 * `SQLITE_ROW`:	 	successfully executet the statement, (next) row has been received in `&row`
 * otherwise:		an error code (check `.error`)
 
-This becomes handy when results (rows) are expected, like with `SELECT`.
+This becomes handy when results (rows) are expected, like with `SELECT`. 
 ```
 ; request the row where "col_1" is "text_4"
 db.Load('SELECT * FROM test_table WHERE col_1 IS "text_4"')
 /*
 	execute and get the row
-	`SQLIGHT_ROW_MAP`: request the row as a `Map()`
+	`SQLIGHT_ROW_MAP`: request row as `Map()`
 */
 ret := db.Go(&row, SQLIGHT_ROW_MAP)   
 
@@ -189,7 +333,8 @@ if (ret = SQLITE_DONE)
 	(also note that you can manually do a "reset" of the current loaded sql-statement by
 	calling the `Reset()` method)
 */
-; we request an `Array()` this time
+
+; now request an `Array()` this time
 db.Go(&row, SQLIGHT_ROW_ARRAY)
 msgbox 'col_2 = ' row[2] ', col_3 = ' row[3] 
 ```
@@ -229,12 +374,12 @@ all rows had been parsed successfully.
 ```
 db.Disconnect()
 ```
-After doing this you are free to open another connection using `Connect()`.
-Also note that if the `SQLight` instance looses scope, the database connection associated with it get disconnected by default.
+After doing this you are free to open another connection using `Connect()`. 
+Also note that if the `SQLight` instance looses scope, the database connection associated with it get disconnected by default. 
 
 ## Error handling
-Methods return `true` on success, `false` otherwise (except for `Go()` and `Save()`).
-Furthermore, you can always check for an error using `.status`.
+Methods return `true` on success, `false` otherwise (except for `Go()` and `Save()`). 
+Furthermore, you can always check for an error using `.status`. 
 * `.status` contains last error code
 * `.error` contains last error description
 ```
@@ -245,21 +390,34 @@ if (ret = false)
 ```
 
 ## Last but not least
-There are two additional methods to shield your transactions from being corrupted by other database connections.
+There are two additional methods to shield your transactions from being corrupted by other database connections. 
 * `.__BEGIN_TRANSACTION__()` 
 * `.__COMMIT_TRANSACTION__()`
 ```
-db.__BEGIN_TRANSACTION__()
+ret := db.__BEGIN_TRANSACTION__()
+if (ret = true)
+	msgbox 'From now on, subsequent database transactions wont return SQLITE_BUSY until __COMMIT_TRANSACTION__()'
 
 db.Now('UPDATE "test_table" SET col_2=0')
 
 ; ... do some more SQLight ...
 
 db.__COMMIT_TRANSACTION__()
-
 ```
+
+## Summary 
+The `Save()`, `Load()` and `Go()` methods can be considered core methods of the SQLight object, as 
+they are more general and flexible in use than the `Now()` method. Anything you can do 
+with the `Now()` method can be done with the `Save()`, `Load()` and `Go()` methods, but the reverse 
+does not apply. 
+
+The `Now()` method can be considered a convenience method, which makes it easy for 
+quick sql executions, especially when there are no results, but if there are, it must be 
+taken into account that all results are being converted to strings. On native 
+string columns this shouldnt be a problem. 
+
 Thats it. For more information refer to
-* `SQLight\SQLight.ahk` source
-* `SQLight\tests\SQLight_test.ahk` test file
+* `SQLight\SQLight.ahk` source, which provides extensive documentation, especially useful when it comes to calling conventions and return values
+* `SQLight\tests\SQLight_test.ahk` test file, with a bunch of examples to dive into
 * [SQLite](https://sqlite.org)
 

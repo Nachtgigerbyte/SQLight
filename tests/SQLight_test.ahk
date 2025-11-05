@@ -76,6 +76,9 @@ class SQLight_Main {
 		table_action() {
 			db := this.db	
 			
+			ret := db.SetBusyHandler(1111)
+				Yunit.Assert(ret = true && db.status = SQLITE_OK, 'should be true/ok: ' db.error)	
+			
 			; insert rows
 			ret := db.Now('BEGIN TRANSACTION;')
 				Yunit.Assert(ret = true && db.status = SQLITE_OK, 'should be true/ok: ' db.error)	
@@ -283,6 +286,7 @@ class SQLight_Main {
 			}	
 			Yunit.Assert(ret = SQLITE_DONE && db.status = SQLITE_DONE, 'should be row: ' db.error)
 			
+			
 			ret := db.GetColumnNames(&col, 'test_table')
 			Yunit.Assert(ret = true && db.status = SQLITE_DONE , 'should be true/ok: ' db.error)	
 			msg := ''
@@ -292,8 +296,51 @@ class SQLight_Main {
 			Yunit.Assert(col[2] = 'col_2', 'should be 2: ' db.error)	
 			Yunit.Assert(col.Length = 4, 'Column count should be 4: ' db.error)	
 			
+			; Now()
+			; insert
+			ret := db.Now('INSERT INTO test_table (col_1, col_2, col_3, col_4) VALUES ("get_table_test", 777, 0.3, NULL)')
+				Yunit.Assert(ret = true && db.status = SQLITE_OK , 'should be true/ok: ' db.error)	
+			; constraint error
+			ret := db.Now('INSERT INTO test_table (col_1, col_2, col_3, col_4) VALUES ("get_table_test", 777, 0.3, NULL)')
+				Yunit.Assert(ret = false && db.status = 19 , 'shouldnt be ok: ' db.error)	
+			; request single result
+			ret := db.Now('SELECT * FROM test_table WHERE rowid IS 7', &tbl, SQLIGHT_ROW_MAP)
+				Yunit.Assert(ret = true && db.status = SQLITE_OK , 'should be ok: ' db.error)	
+				Yunit.Assert(type(tbl) = 'Array', 'should be array: ' db.error)	
+				Yunit.Assert(tbl.Length = 1, 'should be 1: ' db.error)	
+				Yunit.Assert(type(tbl[1]) = 'Map', 'should be map: ' db.error)	
+				Yunit.Assert(tbl[1].Count = 4, 'should be 4: ' db.error)	
+				Yunit.Assert(tbl[1]['col_2'] = 107, 'should be 107: ' db.error)	
+			; request result but there is none
+			ret := db.Now('SELECT * FROM test_table WHERE rowid IS 777', &tbl, SQLIGHT_ROW_MAP)
+				Yunit.Assert(ret = true && db.status = SQLITE_OK , 'should be ok: ' db.error)	
+				Yunit.Assert(tbl = '', 'should be none: ' db.error)	
+			; request multiple results	 
+			ret := db.Now('SELECT rowid,* FROM test_table', &tbl, SQLIGHT_ROW_MAP)
+				Yunit.Assert(ret = true && db.status = SQLITE_OK , 'should be ok: ' db.error)	
+				Yunit.Assert(type(tbl) = 'Array', 'should be array: ' db.error)	
+				Yunit.Assert(tbl.Length = 14, 'should be 14: ' db.error)	
+				Yunit.Assert(type(tbl[1]) = 'Map', 'should be map: ' db.error)	
+				Yunit.Assert(tbl[1].Count = 5, 'should be 5: ' db.error)	
+				if (tbl[7]['rowid'] = 7)
+					Yunit.Assert(tbl[7]['col_2'] = 107, 'should be 107: ' db.error)	
+			; same but request array of arrays	
+			ret := db.Now('SELECT rowid,* FROM test_table', &tbl, SQLIGHT_ROW_ARRAY)
+				Yunit.Assert(ret = true && db.status = SQLITE_OK , 'should be ok: ' db.error)	
+				Yunit.Assert(type(tbl) = 'Array', 'should be array: ' db.error)	
+				Yunit.Assert(tbl.Length = 14, 'should be 14: ' db.error)	
+				Yunit.Assert(type(tbl[1]) = 'Array', 'should be array: ' db.error)	
+				Yunit.Assert(tbl[1].Length = 5, 'should be 5: ' db.error)	
+				if (tbl[7][1] = 7)
+					Yunit.Assert(tbl[7][3] = 107, 'should be 107: ' db.error)	
+			; count		
+			ret := db.Now('SELECT COUNT(*) FROM test_table', &tbl, SQLIGHT_ROW_ARRAY)
+				Yunit.Assert(ret = true && db.status = SQLITE_OK , 'should be ok: ' db.error)
+				Yunit.Assert(tbl[1][1] = 14, 'should be 14: ' db.error)	
 			
-						
+			; msgbox SQLight._libversion()
+			
+			
 		}
 	}
 	
