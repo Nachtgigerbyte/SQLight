@@ -1,0 +1,9 @@
+v1.0.0
+- initial release
+v1.1.1
+- minor changes
+- fixed reset
+- added ClearSaved() to clear saved statements
+- added SetBusyHandler() to make use of sqlite's internal busy handler
+- extended Now() function to receive results
+- extended test facility
