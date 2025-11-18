@@ -53,7 +53,7 @@ run a few tests using the fantastic `Yunit` test framework, which is also includ
 To do so, navigate to the `tests` folder within the `SQLight` folder and execute the 
 test script named `SQLight_test.ahk`. If all goes well, you should see 
 all tests being passed indicated by a green bar at the button of the `Yunit` window. 
-Otherwise a red bar would appear `:(`. If you can make yourself a clue of what was going wrong, tell me. 
+Otherwise a red bar would appear `:(`. If you can make yourself a clue of what went wrong, tell me please. 
  
 ## Ok then, lets assume all went well, we proceed with some coding.
 Create a `SQLight` instance and establish connection to `.\test.db`, if the database does not exist its created.
@@ -227,7 +227,7 @@ EXAMPLE:	Parse all resulting rows:
 
 First we need to `Load()` our sql string, which is then ready to be executed by `Go()`.
 The second argument to the `Load()` method is in fact a dynamic parameter list, which relates to the corresponding 
-`?` placeholders. `Load(sql_string, [parameter1, parameter2, ...])` 
+`?` placeholders. `Load(sql_string, parameter1, parameter2, ...)` 
 
 Our table now contains a few rows, including `NULL` blob's, lets insert a "real" blob. 
 ```
@@ -416,8 +416,141 @@ quick sql executions, especially when there are no results, but if there are, it
 taken into account that all results are being converted to strings. On native 
 string columns this shouldnt be a problem. 
 
+# Version 1.2.22 
+Since version `1.2.22` the `LightTable` class was introduced, which represents 
+a direct link to a database table to perform synchronous operations on it. 
+
+The following introduction demonstrates the usage of the `LightTable` object, 
+based on a simple example of creating and interacting with 
+a configuration file, that is actually a sqlite database. 
+
+Create and connect to a database file called `.\config.db` 
+```
+db := SQLight('config.db')
+```
+Create table in `.\config.db` 
+```
+db.Now('
+(
+CREATE TABLE "main settings" (
+"name" TEXT UNIQUE, 
+"value" TEXT UNIQUE, 
+"description" TEXT, 
+"icon" BLOB )
+)')
+```
+Link this table to a `LightTable` and receive it in `tbl`. 
+```
+tbl := db.Link('main settings', 'name') 
+```
+The 1st parameter is the table name, the 2nd MUST be a column name either from a `UNIQUE` or `PRIMARY KEY` column. 
+This column is used in subsequent operations to uniquely identify a specific row, its also called the key column. 
+
+From this point on we can perform table operations that directly affect the 
+underlying database table. Lets insert some rows. 
+```
+tbl[] := [ 'setting_1',  'set_1',  'This is setting 1.',  FileRead('icon.jpg',"RAW") ]
+tbl[] := [ 'setting_2',  'set_2',  'This is setting 2.',  FileRead('icon.jpg',"RAW") ]
+tbl[] := [ 'setting_3',  'set_3',  'This is setting 3.',  FileRead('icon.jpg',"RAW") ]
+
+msgbox 'RowCount=' tbl.RowCount ', ColCount=' tbl.ColCount
+```
+As seen above, the `tbl[]` syntax can be used to insert rows. The order and size 
+of the assigned array reflect the actual columns of the `main settings` table. 
+The above could also be written as: 
+```
+tbl.Insert( 'setting_1',  'set_1',  'This is setting 1.',  FileRead('icon.jpg',"RAW") )
+tbl.Insert( 'setting_2',  'set_2',  'This is setting 2.',  FileRead('icon.jpg',"RAW") )
+tbl.Insert( 'setting_3',  'set_3',  'This is setting 3.',  FileRead('icon.jpg',"RAW") )
+```
+Delete a row like that. 
+```
+tbl['setting_2'] := 0
+
+msgbox 'RowCount=' tbl.RowCount
+```
+Or the same like this. 
+```
+tbl.Delete('setting_2')
+```
+Note that we can only use a value from the `name` column as an argument to 
+`Delete()` since we `Link()`'ed to that column as the key column. To use the `value` column for example, 
+we have to switch. But again, it has to be either a `UNIQUE` or `PRIMARY KEY` column. 
+```
+tbl.Switch('main settings', 'value') 
+
+; 'value' column is the new key column now
+
+tbl.Delete('set_3')
+
+; insert deleted again
+tbl[] := [ 'setting_2',  'set_2',  'This is setting 2.',  FileRead('icon.jpg',"RAW") ]
+tbl[] := [ 'setting_3',  'set_3',  'This is setting 3.',  FileRead('icon.jpg',"RAW") ]
+```
+Replace a row. 
+```
+; switch to `name` column again
+tbl.Switch('main settings', 'name') 
+
+; change column 2 and 3 at row 'setting_1' which is a value of the current 'name' key column
+
+tbl['setting_1'] := [ 'setting_1',  'new_set_1',  'New description for setting 1.',  FileRead('icon.jpg',"RAW") ]
+;		^				^
+;		|				|
+;		+---------------+-----< replace requires these values to match
+
+tbl.Switch('main settings', 'value') 
+
+; change column 1 and 3 at row 'new_set_1' which is a value of the current 'value' key column
+
+tbl['new_set_1'] := [ 'setting_new_1',  'new_set_1',  'Newer description for setting 1.',  FileRead('icon.jpg',"RAW") ]	
+;		^									^
+;		|									|
+;		+-----------------------------------+------< replace requires these values to match
+```
+> Note that a `Replace` operation must not change its key column value. 
+
+## Getting, Setting 
+Get some cell values. 
+```
+tbl.Switch('main settings', 'name') 
+
+value := tbl['setting_2']['name']   ; returns 'setting_2'
+value := tbl['setting_2']['value']  ; returns 'set_2'
+
+row := tbl['setting_2']
+
+value := row['description']  	; returns 'This is setting 2.'
+value := row['icon']  		  	; returns Buffer() conatining blob
+```
+Set some cell values. 
+```
+tbl['setting_2']['name'] := 'new_setting_2' 
+
+; tbl['setting_2']['value'] := 'new_set_2'   ; <--- this would fail since we changed to 'new_setting_2'
+tbl['new_setting_2']['value'] := 'new_set_2'
+
+row := tbl['new_setting_2']
+
+row['description'] := 'This is new setting 2' 
+row['icon'] := FileRead('icon.jpg',"RAW")	
+```
+
+Receive a temporary copy of a row; changes to that copy wont affect the underlying 
+database table. 
+```
+tmp_row := tbl['setting_3'][]
+; OR
+tmp_row := tbl.GetRow('setting_3')
+
+msgbox tmp_row['description']   ; 'This is setting 3.'
+```
+
 Thats it. For more information refer to
 * `SQLight\SQLight.ahk` source, which provides extensive documentation, especially useful when it comes to calling conventions and return values
 * `SQLight\tests\SQLight_test.ahk` test file, with a bunch of examples to dive into
 * [SQLite](https://sqlite.org)
+
+
+
 
